@@ -1,0 +1,561 @@
+<head>
+        <meta charset="utf-8"/>
+        <style>
+                body {
+                        font-family: verdana;
+                }
+                .casilla {
+                        width: 100px;
+                        height: 100px;
+                        border: solid 4px black;
+                        text-align: center;
+                        vertical-align: middle;
+                        font-size: 70;
+                        cursor: pointer;
+                }
+                #tablero {
+                        border: solid 2px black;
+                        border-collapse: collapse;
+                }
+        </style>
+</head>
+<body>
+        <h1>Tres en raya</h1>
+        <div id="marcador">
+                <b>Jugador: </b><span id="playerWins">0</span>
+                <b>| CPU: </b><span id="cpuWins">0</span>
+                <hr>
+                <b>Ronda: </b><span id="round">0</span>
+                <br>
+                <b id="winnerText" style="visibility: hidden">Ganador: </b><span id="winner"></span>
+                <br>
+                <b id="end" style="visibility: hidden">¡FIN!</b>
+        </div>
+        <hr>
+        <table id="tablero">
+                <tr class="row">
+                        <td class="casilla" id="0"><div><span></span></div></td>
+                        <td class="casilla" id="1"><div><span></span></div></td>
+                        <td class="casilla" id="2"><div><span></span></div></td>
+                </tr>
+                <tr class="row">
+                        <td class="casilla" id="3"><div><span></span></div></td>
+                        <td class="casilla" id="4"><div><span></span></div></td>
+                        <td class="casilla" id="5"><div><span></span></div></td>
+                </tr>
+                <tr class="row">
+                        <td class="casilla" id="6"><div><span></span></div></td>
+                        <td class="casilla" id="7"><div><span></span></div></td>
+                        <td class="casilla" id="8"><div><span></span></div></td>
+                </tr>
+        </table>
+        <hr>
+        <button id="restart" style="visibility: hidden">JUGAR DE NUEVO</button>
+        <script>
+                const $ = (s) => document.querySelectorAll(s);
+                const storageKey = 'tiktaktoe';
+                const restartButton = document.querySelector("#restart");
+
+                class StorageHandler {
+                        constructor(key) {
+                                this.key = key;
+                                this.item = this.restore() ? this.restore()
+                                        : {
+                                        player: 0,
+                                        cpu: 0
+                                };
+                                this.save(this.item);
+                        }
+
+                        get player() {return this.item.player;}
+                        set player(p) {this.item.player = p;}
+
+                        get cpu() {return this.item.cpu;}
+                        set cpu(c) {this.item.cpu = c;}
+
+                        save() {localStorage.setItem(this.key, JSON.stringify(this.item));}
+
+                        restore() {return JSON.parse(localStorage.getItem(this.key));}
+                }
+                var sh = new StorageHandler(storageKey);
+
+                class GUI {
+                        constructor(marcador, tablero, storageHandler) {
+                                this._t;
+                                this._g = storageHandler;
+
+                                this.marcador = {
+                                        rounds: marcador.querySelector("#round"),
+                                        winnerText: marcador.querySelector("#winnerText"),
+                                        winner: marcador.querySelector("#winner"),
+                                        end: marcador.querySelector("#end"),
+                                        playerWins: marcador.querySelector("#playerWins"),
+                                        cpuWins: marcador.querySelector("#cpuWins")
+                                };
+                                this.marcador.rounds.innerText = 0;
+                                this.marcador.winnerText.style.visibility = "hidden";
+                                this.marcador.winner.innerText = "";
+                                this.marcador.end.style.visibility = "hidden";
+
+                                this.marcador.playerWins.innerText = this._g.player;
+                                this.marcador.cpuWins.innerText = this._g.cpu;
+
+                                this.tablero = tablero;
+                                this.casillas = new Array(3);
+                                let c = 0;
+                                for (let i = 0; i < this.casillas["length"]; i++) {
+                                        this.casillas[i] = new Array(3);
+                                        for (let j = 0; j < this.casillas[i]["length"]; j++) {
+                                                this.casillas[i][j] = tablero.querySelector(`td#\\3${c++}`);
+                                        }
+                                }
+                        }
+
+                        set t(t) {this._t = t}
+
+                        paint(tablero) {
+                                let c = this.casillas;
+                                c.forEach((c,i) => {
+                                        c.forEach((c,j) =>{
+                                                let span = c.querySelector('span');
+                                                span.innerText = tablero[i][j] == 0 ? "" : tablero[i][j];
+                                        });
+                                });
+                        }
+
+                        action(x, y) {}
+
+                        game() {
+                                let c = this.casillas;
+                                let t = this._t;
+                                let last = null;
+                                let replace = false;
+                                let finish = false;
+
+                                let doRound = () => {
+                                        t.printTablero();
+                                        t.checkForWin();
+
+                                        t.cpuTurn();
+                                        t.printTablero();
+                                        t.checkForWin();
+
+                                        this.marcador.rounds.innerText = ++t.rounds;
+                                }
+
+                                t.printTablero();
+                                for (let y = 0; y < c["length"]; y++) {
+                                        for (let x = 0; x < c[y]["length"]; x++) {
+                                                let element = c[y][x];
+                                                element.addEventListener('click',() => {
+                                                        if (!finish) {
+                                                                try {
+                                                                        if (t.rounds < 3) {
+                                                                                if (t.checkFicha({x, y}) === true) {
+                                                                                        t.setFicha(x, y, t.player);
+                                                                                        doRound();
+                                                                                }
+                                                                        } else {
+                                                                                if (!last && t.checkFicha({x, y}, true) === true) {
+                                                                                        element.style.backgroundColor = "green";
+                                                                                        last = {x, y: y};
+                                                                                } else if (last && t.checkFicha({x, y}) === true) {
+                                                                                        c[last.y][last.x].style.backgroundColor = "inherit";
+                                                                                        t.replaceFicha(last, {x: x, y: y}, t.player);
+                                                                                        last = null;
+                                                                                        doRound();
+                                                                                }
+                                                                        }
+                                                                } catch (e) {
+                                                                        let m = this.marcador;
+                                                                        let updateMarcador = () => {
+                                                                                m.winner.innerText = e.toUpperCase();
+                                                                                m.winnerText.style.visibility = "visible";
+                                                                                m.end.style.visibility = "visible";
+                                                                                this._g.save();
+                                                                                restartButton.style.visibility = "visible";
+                                                                        }
+                                                                        switch (e) {
+                                                                                case "player":
+                                                                                        m.playerWins.innerText = parseInt(m.playerWins.innerText) + 1;
+                                                                                        this._g.player = m.playerWins.innerText;
+                                                                                        updateMarcador();
+                                                                                        break;
+                                                                                case "cpu":
+                                                                                        m.cpuWins.innerText = parseInt(m.cpuWins.innerText) + 1;
+                                                                                        this._g.cpu = m.cpuWins.innerText;
+                                                                                        updateMarcador();
+                                                                                        break;
+                                                                                default:
+                                                                                        alert(e);
+                                                                        }
+                                                                }
+                                                        }
+                                                });
+                                        }
+                                }
+                        }
+                }
+
+                var gui = new GUI($('#marcador')[0], $('#tablero')[0], sh);
+
+                class Tablero {
+                        constructor(guiObject) {
+                                //dimensiones del tablero
+                                const height = 3;
+                                const width = 3
+
+                                //tiradas del juego
+                                this.gui = guiObject;
+
+                                this.rounds = 0;
+                                this.height = height;
+                                this.width = width;
+                                this.tablero = Array(height);
+                                //fichas
+                                this.player = 'X';
+                                this.cpu = 'O';
+
+                                //genera el tablero 3x3
+                                for (let i = 0; i < height; i++) {
+                                        this.tablero[i] = Array(width);
+                                }
+                                this.setupTablero();
+                        }
+
+                        //rellena el tablero de 0s
+                        setupTablero() {
+                                for (let i = 0; i < this.height; i++) {
+                                        for (let j = 0; j < this.width; j++) {
+                                                this.tablero[i][j] = 0;
+                                        }
+                                }
+                        }
+
+                        //comprueba que una casilla del tablero esté vacía
+                        isEmpty(x, y) {
+                                return this.tablero[y][x] == 0 ? true : false; //r¡si es 0, la casilla está vacía y devuelve un true
+                        }
+
+                        isCPU(x, y) {
+                                return this.tablero[y][x] == this.cpu ? true : false; //si es de la cpu devuelve un true
+                        }
+
+                        isPlayer(x, y) {
+                                return this.tablero[y][x] == this.player ? true : false; //si es del JUGADOR devuelve un true
+                        }
+
+
+                        //cambia de lugar una ficha
+                        replaceFicha(last, now, player) {
+                                this.tablero[last.y][last.x] = 0;
+
+                                this.setFicha(now.x, now.y, player);
+                        }
+
+                        //coloca una ficha
+                        setFicha(x, y, player) {
+                                this.tablero[y][x] = player;
+                        }
+
+                        //funcion para leer una coordenada
+                        checkFicha({x: x, y: y}, repeat = false) {
+                                if (!repeat && !this.isEmpty(x, y)) { //comprueba si la casilla esta ocupada o vacía
+                                        throw "Esa posición ya está ocupada";
+                                } else if (repeat && !this.isPlayer(x, y)) {
+                                        throw "Esa casilla no es tuya";
+                                }
+
+                                return true;
+                        }
+
+                        checkForWin() {
+                                let tablero = this.tablero;
+                                let temp = [];
+
+                                let check = (fila) => { //funcion flecha para no hacer that = this
+                                        let tmp = fila.filter(f => f != this.player); //returna un array con los huecos donde no haya fichas del jugador
+                                        if (tmp[0] === undefined) { //comprueba que el array está vacío
+                                                throw "player";
+                                        } else {
+                                                tmp = fila.filter(f => f != this.cpu); //cpu wins
+                                                if (tmp[0] === undefined)
+                                                        throw "cpu";
+                                        }
+                                }
+
+                                //comprobar filas y columnas
+                                for (let i = 0; i < tablero.length; i++) {
+                                        temp = tablero[i]; //seleccionamos la fila del tablero indicada por i
+                                        check(temp); //comprobamos la fila con la funcion check() y guardamos el resutlado en p
+
+                                        temp = [tablero[0][i], tablero[1][i], tablero[2][i]]; //seleccionamos la "columna" indicada por i
+                                        check(temp);
+                                }
+
+                                //comprobamos las diagonales del tablero
+                                temp = [tablero[0][0], tablero[1][1], tablero[2][2]]; //diagonal 1
+                                check(temp);
+
+                                temp = [tablero[0][2], tablero[1][1], tablero[2][0]]; //diagonal 2
+                                check(temp);
+                        }
+                        //##############################################################################################################################
+                        getCpuNewMovement(getSwitch = false) {
+                                let CPU_R = this.rounds;
+                                let t = this.tablero;
+                                let cpu = this.cpu;
+                                let pl = this.player;
+
+                                let getEmpty = () => {
+                                        let x, y;
+                                        do {
+                                                x = Math.floor(Math.random() * 3);
+                                                y = Math.floor(Math.random() * 3);
+                                        } while (!this.isEmpty(x, y));
+
+
+                                        return {x: x, y: y};
+                                }
+
+                                function occurance(arr){
+                                        let h = arr.sort((a,b) =>
+                                                arr.filter(v => v===a).length
+                                                - arr.filter(v => v===b).length
+                                        ).pop();
+                                        return {
+                                                x: h.split(",")[0],
+                                                y: h.split(",")[1],
+                                        };
+                                }
+
+                                //sacar target (ganar >> proteger >> a lazar)
+
+                                function getTarget(row, i, type, method = "win") { //win, protect, swap, discard
+                                        let target = null;
+                                        let withPl = row.filter(f => f == pl)["length"];
+                                        let withCPU = row.filter(f => f == cpu)["length"];
+                                        let withBlnk = row.filter(f => f == 0)["length"];
+                                        let index, subINX;
+                                        let x, y;
+
+                                        function assign(val = 1) {
+                                                if (val == 1) {
+                                                        index = row.indexOf(method != "swap" && method.search("discard") == -1 ? 0 : cpu);
+                                                        subINX = i != 0 ? Math.abs(index - 2 % 3) : index;
+                                                } else {
+                                                        index = row.lastIndexOf(method != "swap" && method.search("discard") == -1 ? 0 : cpu);
+                                                        subINX = i != 0 ? Math.abs(index - 2 % 3) : index;
+                                                }
+                                                switch (type) {
+                                                        case "horizontal":
+                                                        x = index;
+                                                        y = i;
+                                                        break;
+                                                        case "vertical":
+                                                        x = i;
+                                                        y = index;
+                                                        break;
+                                                        case "diagonal":
+                                                        x = index;
+                                                        y = subINX;
+                                                }
+
+                                        }
+                                        assign();
+
+                                        switch (method) {
+                                                case "win":
+                                                        if (withCPU == 2 && withBlnk == 1) {
+                                                                throw {
+                                                                        x: x,
+                                                                        y: y
+                                                                };
+                                                        }
+                                                        break;
+                                                case "protect":
+                                                        if (withPl == 2 && withBlnk == 1) {
+                                                                throw {
+                                                                        x: x,
+                                                                        y: y
+                                                                };
+                                                        }
+                                                        break;
+                                                case "swap":
+                                                        if (withCPU == 1) {
+                                                                target = [`${x},${y}`]; //x,y
+                                                        } else if (withCPU == 2 && withPl == 1) {
+                                                                target = [`${x},${y}`];
+                                                                assign(2);
+                                                                target.push(`${x},${y}`); //x,y
+                                                        }
+                                                        break;
+                                                case "discardWIN":
+                                                        if (withCPU == 2 && withBlnk == 1) {
+                                                                target = [`${x},${y}`];
+                                                                assign(2);
+                                                                target.push(`${x},${y}`);
+                                                        }
+                                                        break;
+                                                case "discardPROTECT":
+                                                        if (withCPU == 1 && withPl == 2) {
+                                                                target = [`${x},${y}`];
+                                                        }
+                                                        break;
+                                        }
+
+                                        return target;
+                                }
+
+                                let getClever = (swap) => {
+                                        //generacion inteligente
+                                        const diag = [
+                                                [t[0][0], t[1][1], t[2][2]], //diagonal1
+                                                [t[2][0], t[1][1], t[0][2]] //diagonal2
+                                        ];
+
+                                        let pl = this.player;
+                                        let cpu = this.cpu;
+                                        let discardings = [];
+                                        let target = null;
+                                        let win = false;
+                                        let targetType = "win";
+
+                                        function tableSearch(targetType, discardType) {
+                                                // horizontal
+                                                try {
+                                                        t.forEach((f, i) => {
+                                                                switch (targetType) {
+                                                                        case "swap":
+                                                                                let pusher = getTarget(f, i, "horizontal", "swap");
+                                                                                if (pusher)
+                                                                                        pusher.forEach(f => discardings.push(f));
+                                                                                break;
+                                                                        case "discard":
+                                                                                discardings = discardings.filter(e => {
+                                                                                        let filtrer = getTarget(f, i, "horizontal", discardType);
+                                                                                        return filtrer ? filtrer.indexOf(e) == -1 : e != null;
+                                                                                });
+                                                                                break;
+                                                                        default:
+                                                                                getTarget(f, i, "horizontal", targetType);
+
+                                                                }
+                                                        });
+
+                                                        //vertical
+                                                        t.forEach((f, i, t) => {
+                                                                f = [t[0][i], t[1][i], t[2][i]];
+                                                                ;
+                                                                switch (targetType) {
+                                                                        case "swap":
+                                                                                let pusher = getTarget(f, i, "vertical", "swap");
+                                                                                if (pusher)
+                                                                                        pusher.forEach(f => discardings.push(f));
+                                                                                break;
+                                                                        case "discard":
+                                                                                discardings = discardings.filter(e => {
+                                                                                        let filtrer = getTarget(f, i, "vertical", discardType);
+                                                                                        return filtrer ? filtrer.indexOf(e) == -1 : e != null;
+                                                                                });
+                                                                                break;
+                                                                        default:
+                                                                                getTarget(f, i, "vertical", targetType);
+
+                                                                }
+                                                        });
+
+                                                        //diagonal
+                                                        diag.forEach((f, i) => {
+                                                                switch (targetType) {
+                                                                        case "swap":
+                                                                                let pusher = getTarget(f, i, "diagonal", "swap");
+                                                                                if (pusher)
+                                                                                        pusher.forEach(f => discardings.push(f));
+                                                                                break;
+                                                                        case "discard":
+                                                                                discardings = discardings.filter(e => {
+                                                                                        let filtrer = getTarget(f, i, "diagonal", discardType);
+                                                                                        return filtrer ? filtrer.indexOf(e) == -1 : e != null;
+                                                                                });
+                                                                                break;
+                                                                        default:
+                                                                                getTarget(f, i, "diagonal", targetType);
+
+                                                                }
+                                                        });
+                                                } catch (e) {
+                                                        target = e;
+                                                }
+                                        }
+
+                                        // obtenemos el Objetivo
+                                        while (!target) {
+                                                tableSearch(targetType);
+                                                if (!target && targetType == "protect") {
+                                                        target = getEmpty();
+                                                } else if (target && targetType != "protect") {
+                                                        win = true;
+                                                }
+                                                targetType = "protect";
+                                        }
+
+                                        if (swap) {
+                                                let now = target;
+                                                tableSearch("swap");
+
+                                                if (win) {
+                                                        tableSearch("discard", "discardWIN");
+                                                        win = false;
+                                                } else {
+
+                                                        tableSearch("discard", "discardPROTECT");
+                                                }
+
+                                                let last = occurance(discardings);
+                                                return {
+                                                        now: now,
+                                                        last: last
+                                                }
+
+                                        } else {
+                                                return target;
+                                        }
+                                }
+                                return getClever(getSwitch);
+                        }
+
+                        cpuTurn() {
+                                let CPU_R = this.rounds;
+
+                                if (CPU_R < 3) {
+                                        let a = this.getCpuNewMovement(); //nos devuelve una casilla que esté vacia y la guarda en a
+                                        this.setFicha(a.x, a.y, this.cpu); //colocamos la ficha en las posiciones devueltas por la funcion anterior
+                                } else {
+                                        let a = this.getCpuNewMovement(true);
+                                        this.replaceFicha(a.last, a.now, this.cpu);
+                                }
+                        }
+                        //##############################################################################################################################
+
+                        printTablero() {
+                                this.gui.paint(this.tablero);
+                        }
+
+                        game() {
+                                this.gui.game();
+                        }
+                }
+
+                var tablero;
+                document.addEventListener('DOMContentLoaded', () => {
+                        tablero = new Tablero(gui);
+                        gui.t = tablero;
+                        tablero.game();
+                });
+                restartButton.addEventListener('click', () => {
+                        location.reload();
+                });
+
+        </script>
+</body>
