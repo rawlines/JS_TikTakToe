@@ -4,7 +4,7 @@ Simple tik tak toe game made in JS and HTML.
 to play just go to [comandantexd.github.io/JS_TikTakToe](https://comandantexd.github.io/JS_TikTakToe/)
 
 
-# Instrictions
+# Instructions
 
 StackEdit stores your files in your browser, which means all your files are automatically saved locally and are accessible **offline!**
 
